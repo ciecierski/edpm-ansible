@@ -1,0 +1,55 @@
+---
+# Copyright Red Hat, Inc.
+# All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+
+- name: Run SSH key cleanup tasks as root
+  become: true
+  block:
+    - name: Find old backup directories
+      ansible.builtin.find:
+        paths: "{{ edpm_ssh_key_rotation_backup_dir }}"
+        patterns: "[0-9]*"
+        file_type: directory
+      register: backup_dirs
+      when: edpm_ssh_key_rotation_cleanup_backups | bool
+
+    - name: Sort backup directories by modification time
+      ansible.builtin.set_fact:
+        sorted_backup_dirs: "{{ backup_dirs.files | sort(attribute='mtime', reverse=true) }}"
+      when: 
+        - edpm_ssh_key_rotation_cleanup_backups | bool
+        - backup_dirs.files is defined
+
+    - name: Remove old backup directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ sorted_backup_dirs[edpm_ssh_key_rotation_max_backups:] }}"
+      when: 
+        - edpm_ssh_key_rotation_cleanup_backups | bool
+        - sorted_backup_dirs is defined
+        - sorted_backup_dirs | length > edpm_ssh_key_rotation_max_backups
+
+    - name: Display cleanup summary
+      ansible.builtin.debug:
+        msg: |
+          SSH Key Rotation Cleanup Summary
+          ================================
+          Backup directory: {{ edpm_ssh_key_rotation_backup_dir }}
+          Max backups to keep: {{ edpm_ssh_key_rotation_max_backups }}
+          Total backup directories found: {{ backup_dirs.files | length if backup_dirs.files is defined else 0 }}
+          Directories removed: {{ sorted_backup_dirs[edpm_ssh_key_rotation_max_backups:] | length if sorted_backup_dirs is defined and sorted_backup_dirs | length > edpm_ssh_key_rotation_max_backups else 0 }}
+      when: edpm_ssh_key_rotation_cleanup_backups | bool

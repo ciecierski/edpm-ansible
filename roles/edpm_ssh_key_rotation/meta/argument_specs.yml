@@ -1,0 +1,51 @@
+---
+# Copyright Red Hat, Inc.
+# All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+argument_specs:
+  main:
+    short_description: The main entry point for the edpm_ssh_key_rotation role.
+    description: |
+      This role provides SSH authorized keys rotation functionality for EDPM nodes.
+      It can backup existing authorized keys and add new key entries.
+    options:
+      edpm_ssh_key_rotation_backup_keys:
+        description: Backup existing authorized keys before rotation
+        type: bool
+        default: true
+      edpm_ssh_key_rotation_backup_dir:
+        description: Backup directory for old authorized keys
+        type: str
+        default: "/var/lib/edpm-config/ssh-keys-backup"
+      edpm_ssh_key_rotation_user:
+        description: User for authorized keys rotation
+        type: str
+        default: "{{ ansible_user | default('root') }}"
+      edpm_ssh_key_rotation_force:
+        description: Force key rotation even if key exists
+        type: bool
+        default: false
+      edpm_ssh_key_rotation_cleanup_backups:
+        description: Cleanup old backup keys after successful rotation
+        type: bool
+        default: false
+      edpm_ssh_key_rotation_max_backups:
+        description: Maximum number of backup generations to keep
+        type: int
+        default: 3
+      edpm_ssh_key_rotation_new_public_key:
+        description: New public key content to add to authorized_keys
+        type: str
+        default: ""

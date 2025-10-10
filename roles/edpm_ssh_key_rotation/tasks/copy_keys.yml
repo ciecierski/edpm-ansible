@@ -1,0 +1,75 @@
+---
+# Copyright Red Hat, Inc.
+# All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+
+- name: Run SSH authorized keys rotation tasks as root
+  become: true
+  block:
+    - name: Check if new authorized key entry is provided
+      ansible.builtin.assert:
+        that:
+          - edpm_ssh_key_rotation_new_key_entry != ""
+        fail_msg: "New authorized key entry is not provided. Please set edpm_ssh_key_rotation_new_public_key variable."
+
+    - name: Ensure SSH directory exists
+      ansible.builtin.file:
+        path: "{{ edpm_ssh_key_rotation_ssh_dir }}"
+        state: directory
+        mode: "0700"
+        owner: "{{ edpm_ssh_key_rotation_user }}"
+        group: "{{ edpm_ssh_key_rotation_user }}"
+
+    - name: Check if authorized keys file exists
+      ansible.builtin.stat:
+        path: "{{ edpm_ssh_key_rotation_authorized_keys_file }}"
+      register: authorized_keys_file_exists
+
+    - name: Read existing authorized keys
+      ansible.builtin.slurp:
+        src: "{{ edpm_ssh_key_rotation_authorized_keys_file }}"
+      register: existing_authorized_keys
+      when: authorized_keys_file_exists.stat.exists
+
+    - name: Create new authorized keys content
+      ansible.builtin.set_fact:
+        new_authorized_keys_content: |
+          {{ existing_authorized_keys.content | b64decode if authorized_keys_file_exists.stat.exists else '' }}
+          {{ edpm_ssh_key_rotation_new_key_entry }}
+      when: edpm_ssh_key_rotation_new_key_entry != ""
+
+    - name: Create authorized keys file with new entry
+      ansible.builtin.copy:
+        content: "{{ new_authorized_keys_content }}"
+        dest: "{{ edpm_ssh_key_rotation_authorized_keys_file }}"
+        mode: "0600"
+        owner: "{{ edpm_ssh_key_rotation_user }}"
+        group: "{{ edpm_ssh_key_rotation_user }}"
+      when: edpm_ssh_key_rotation_new_key_entry != ""
+
+    - name: Verify authorized keys file exists
+      ansible.builtin.stat:
+        path: "{{ edpm_ssh_key_rotation_authorized_keys_file }}"
+      register: authorized_keys_verify
+
+    - name: Assert authorized keys file exists
+      ansible.builtin.assert:
+        that:
+          - authorized_keys_verify.stat.exists
+        fail_msg: "Authorized keys file {{ edpm_ssh_key_rotation_authorized_keys_file }} does not exist after rotation"
+
+    - name: Display authorized keys file info
+      ansible.builtin.debug:
+        msg: "Authorized keys file updated for user {{ edpm_ssh_key_rotation_user }} at {{ edpm_ssh_key_rotation_authorized_keys_file }}"
